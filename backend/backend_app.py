@@ -26,12 +26,13 @@ def get_posts() -> Response:
     return jsonify(POSTS)
 
 
-def validate_post_data(new_post: dict):
+def validate_post_data(new_post: dict) -> bool:
     """
     Return True if new post data
     has title and content
     otherwise return False
     param new_data: dict
+    returns: True | False (bool)
     """
     return ('title' in new_post and 'content' in new_post) and \
         new_post['title'] != '' and new_post['content'] != ''
@@ -74,7 +75,7 @@ def add_post() -> Tuple[Response, int]:
     new_post = request.get_json()
 
     if not validate_post_data(new_post):
-        return jsonify({"error": "Invalid Post Data"}), 400  # bad request
+        return bad_request('')
 
     add_new_post(new_post)
 
@@ -113,31 +114,81 @@ def delete_post(post_id: int) -> Tuple[Response, int]:
     post = find_post_by_id(post_id)
 
     if post is None:
-        return Response(''), 404  # Not Found
+        return not_found_error('')
 
     POSTS.remove(post)
     message = {"message": f"Post with id {post_id} has been deleted successfully."}
-    return jsonify(message), 200  # 204 No Content
+    return jsonify(message), 200  # OK
+
+
+def validate_post_data_update(new_post) -> bool:
+    """
+    Return True if the key
+    of the new post data
+    is title or content
+    otherwise return False
+    param new_post: dict
+    returns: True | False (bool)
+    """
+    for key in new_post:
+        if key in ['title', 'content']:
+            return True
+    return False
+
+
+@app.route('/api/posts/<int:post_id>', methods=['PUT'])
+def update_post(post_id: int) -> Tuple[Response, int]:
+    """
+    An API endpoint to update an existing blog post
+    returns:
+        not found error message or
+        bad request error message or
+        the updated post, 200 (Tuple[Response, int])
+    """
+    post = find_post_by_id(post_id)
+
+    if post is None:
+        return not_found_error('')
+
+    new_post = request.get_json()
+
+    if new_post != {}:
+        if not validate_post_data_update(new_post):
+            return bad_request('')
+
+    post.update(new_post)
+
+    return jsonify(post), 200  # Ok
 
 
 @app.errorhandler(404)
-def not_found_error():
+def not_found_error(_error) -> Tuple[Response, int]:
     """
     Handle 404, Not Found Error
     returns:
-        Not Found error message, 404 (Tuple[Response, int])
+        Post Not Found error message, 404 (Tuple[Response, int])
     """
-    return jsonify({"error": "Not Found"}), 404
+    return jsonify({"error": "Post Not Found"}), 404
 
 
 @app.errorhandler(405)
-def method_not_allowed_error() -> Tuple[Response, int]:
+def method_not_allowed_error(_error) -> Tuple[Response, int]:
     """
     Handle 405, Method Not Allowed Error
     returns:
         Method Not Allowed error message, 405 (Tuple[Response, int])
     """
     return jsonify({"error": "Method Not Allowed"}), 405
+
+
+@app.errorhandler(400)
+def bad_request(_error) -> Tuple[Response, int]:
+    """
+    Handle 400, Bad Request Error
+    returns:
+        Bad Request error message, 400 (Tuple[Response, int])
+    """
+    return jsonify({"error": "Invalid Post Data"}), 400
 
 
 if __name__ == '__main__':
