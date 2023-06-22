@@ -1,7 +1,7 @@
 """
 Backend API endpoints for Blog Posts
 """
-from typing import Tuple
+from typing import Tuple, List
 from flask import Flask, jsonify, request, Response
 # pip3 install flask-cors
 from flask_cors import CORS
@@ -154,11 +154,40 @@ def update_post(post_id: int) -> Tuple[Response, int]:
 
     if new_post != {}:
         if not validate_post_data_update(new_post):
-            return bad_request('')
+            return bad_request_error('')
 
     post.update(new_post)
 
     return jsonify(post), 200  # Ok
+
+
+@app.route('/api/posts/search', methods=['GET'])
+def search_post() -> List[dict]:
+    """
+    An API endpoint that will allow clients
+    to search for posts by their
+    title or content.
+    returns:
+        empty list or
+        searched result (List[dict])
+    """
+    # url = "/api/posts/search?title=flask"
+    # url = "/api/posts/search?content=python"
+
+    title = request.args.get('title')
+    content = request.args.get('content')
+
+    search_result = []
+    for post in POSTS:
+        if title is not None and \
+                title.strip().lower() in post['title'].lower():
+            search_result.append(post)
+
+        if content is not None and \
+                content.strip().lower() in post['content'].lower():
+            search_result.append(post)
+
+    return search_result
 
 
 @app.errorhandler(404)
@@ -182,7 +211,7 @@ def method_not_allowed_error(_error) -> Tuple[Response, int]:
 
 
 @app.errorhandler(400)
-def bad_request(_error) -> Tuple[Response, int]:
+def bad_request_error(_error) -> Tuple[Response, int]:
     """
     Handle 400, Bad Request Error
     returns:
