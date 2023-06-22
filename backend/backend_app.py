@@ -1,6 +1,7 @@
 """
 Backend API endpoints for Blog Posts
 """
+from typing import Tuple
 from flask import Flask, jsonify, request, Response
 # pip3 install flask-cors
 from flask_cors import CORS
@@ -63,7 +64,7 @@ def add_new_post(new_post: dict):
 
 
 @app.route('/api/posts', methods=['POST'])
-def add_post() -> tuple[Response, int]:
+def add_post() -> Tuple[Response, int]:
     """
     An API endpoint to add a new blog post
     returns:
@@ -78,6 +79,65 @@ def add_post() -> tuple[Response, int]:
     add_new_post(new_post)
 
     return jsonify(new_post), 201  # Created
+
+
+def find_post_by_id(post_id: int) -> dict | None:
+    """
+    Find the post with the given id
+    param post_id: int
+    returns:
+        Post (dict)
+        None
+    """
+    for post in POSTS:
+        if post['id'] == post_id:
+            return post
+    return None
+
+
+@app.route('/api/posts/<int:post_id>', methods=['DELETE'])
+def delete_post(post_id: int) -> Tuple[Response, int]:
+    """
+    An API endpoint to delete a post by its id
+    **An OPTIONS request to the server is made
+    before DELETE, PUT, PATCH methods
+    to obtain permission or "preflight" the request.
+    CORS helps ensure that only trusted sources are able
+    to make cross-origin requests and
+    helps protect against potential security vulnerabilities.
+    params post_id: int
+    returns:
+        Delete message, 200 (Tuple[Response, int])
+        Empty message, 404 (Tuple[Response, int])
+    """
+    post = find_post_by_id(post_id)
+
+    if post is None:
+        return Response(''), 404  # Not Found
+
+    POSTS.remove(post)
+    message = {"message": f"Post with id {post_id} has been deleted successfully."}
+    return jsonify(message), 200  # 204 No Content
+
+
+@app.errorhandler(404)
+def not_found_error():
+    """
+    Handle 404, Not Found Error
+    returns:
+        Not Found error message, 404 (Tuple[Response, int])
+    """
+    return jsonify({"error": "Not Found"}), 404
+
+
+@app.errorhandler(405)
+def method_not_allowed_error() -> Tuple[Response, int]:
+    """
+    Handle 405, Method Not Allowed Error
+    returns:
+        Method Not Allowed error message, 405 (Tuple[Response, int])
+    """
+    return jsonify({"error": "Method Not Allowed"}), 405
 
 
 if __name__ == '__main__':
