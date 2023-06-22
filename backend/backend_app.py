@@ -20,7 +20,7 @@ def get_posts() -> Response:
     A GET API endpoint for
     listing all the posts
     in the storage
-    returns: posts list (json)
+    returns: posts list (Response)
     """
     return jsonify(POSTS)
 
@@ -66,6 +66,9 @@ def add_new_post(new_post: dict):
 def add_post() -> tuple[Response, int]:
     """
     An API endpoint to add a new blog post
+    returns:
+        Invalid post data error message, bad request status code
+        New post, created status code
     """
     new_post = request.get_json()
 
