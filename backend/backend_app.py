@@ -16,13 +16,38 @@ POSTS = [
 
 
 @app.route('/api/posts', methods=['GET'])
-def get_posts() -> Response:
+def get_posts() -> tuple[Response, int] | Response:
     """
     A GET API endpoint for
-    listing all the posts
-    in the storage
-    returns: posts list (Response)
+    listing all the posts.
+    It also allows the posts
+    to be sorted by title or content,
+    in ascending or descending order.
+
+    sort: Specifies the field (title or content) by which
+          posts should be sorted.
+    direction: Specifies the sort order (asc or desc).
+
+    returns:
+        posts list (Response) or
+        ordered posts list (Response) or
+        bad request error message, 400 (tuple[Response, int])
     """
+    # /api/posts?sort=title&direction=desc
+
+    sort = request.args.get('sort')
+    direction = request.args.get('direction')
+
+    if sort is not None and \
+            direction is not None:
+
+        if sort not in ['title', 'content'] or \
+                direction not in ['asc', 'desc']:
+            return bad_request_error('')
+
+        ordered_posts = sorted(POSTS, key=lambda post: post[sort], reverse=(direction == 'desc'))
+        return jsonify(ordered_posts)
+
     return jsonify(POSTS)
 
 
