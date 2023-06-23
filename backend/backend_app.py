@@ -3,13 +3,15 @@ Blog Application RESTful API Web Service.
 A RESTful API with Flask that implement
 listing, adding, deleting, updating,
 searching, and sorting blog posts.
-Implemented endpoints,
+Implemented CORS endpoints,
 errors handling,
 pagination,
 rate limit,
 logging and
 testing API with Postman.
 """
+from datetime import datetime
+import json
 import logging
 from typing import Tuple, List
 from flask import Flask, jsonify, request, Response
@@ -28,18 +30,26 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(levelname)s: %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
 
-POSTS = [
-    {"id": 1, "title": "First post", "content": "This is the first post."},
-    {"id": 2, "title": "Second post", "content": "This is the second post."},
-    {"id": 3, "title": "Third post", "content": "This is the third post."},
-    {"id": 4, "title": "Fourth post", "content": "This is the fourth post."},
-    {"id": 5, "title": "Fifth post", "content": "This is the fifth post."},
-    {"id": 6, "title": "Sixth post", "content": "This is the sixth post."},
-    {"id": 7, "title": "Seventh post", "content": "This is the seventh post."},
-    {"id": 8, "title": "Eighth post", "content": "This is the eighth post."},
-    {"id": 9, "title": "Ninth post", "content": "This is the ninth post."},
-    {"id": 10, "title": "Tenth post", "content": "This is the tenth post."},
-]
+FILE_PATH = 'static/posts.json'
+
+
+def read_file():
+    """
+    Reading from a JSON file
+    """
+    try:
+        with open(FILE_PATH, 'r', encoding='utf-8') as handle:
+            return json.load(handle)
+    except FileNotFoundError:
+        return None
+
+
+def write_file(blog_posts):
+    """
+    Writing to JSON file
+    """
+    with open(FILE_PATH, 'w', encoding='utf-8') as file:
+        json.dump(blog_posts, file)
 
 
 def pagination() -> tuple[Response, int] | tuple[int, int]:
@@ -53,7 +63,7 @@ def pagination() -> tuple[Response, int] | tuple[int, int]:
     try:
         # /api/posts?page=2&limit=5
         page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 10))
+        limit = int(request.args.get('limit', 100))
     except ValueError:
         return bad_request_error('')
 
@@ -63,15 +73,18 @@ def pagination() -> tuple[Response, int] | tuple[int, int]:
     return start_index, end_index
 
 
-def sort_posts() -> bool | List | None:
+def sort_posts(posts: List[dict]) -> bool | List | None:
     """
-    Sort blog posts by title or content,
+    Sort blog posts by title, content, author or date,
     in ascending or descending order.
-    sort: Specifies the field (title or content) by which
+    sort: Specifies the field by which
           posts should be sorted.
     direction: Specifies the sort order (asc or desc).
-    returns:
-        bad request error message, 400 (Tuple[Response, int])
+    Params:
+        posts: List[dict]
+    Returns:
+        False if sort or direction is not
+            the desired parameters (bool)
         sorted posts (List) or
         None
     """
@@ -80,12 +93,14 @@ def sort_posts() -> bool | List | None:
     direction = request.args.get('direction', 'asc')
 
     if sort is not None:
-        if sort not in ['title', 'content'] or \
+        if sort not in ['title', 'content', 'author', 'date'] or \
                 direction not in ['asc', 'desc']:
             return False
 
-        sorted_posts = sorted(POSTS, key=lambda post: post[sort], reverse=direction == 'desc')
-        return sorted_posts
+        if sort == 'date':
+            return sorted(posts, key=lambda post: datetime.strptime(post[sort], "%Y-%m-%d").date(), reverse=direction == 'desc')
+
+        return sorted(posts, key=lambda post: post[sort], reverse=direction == 'desc')
     return None
 
 
@@ -107,13 +122,18 @@ def get_posts() -> Tuple[Response, int] | Response:
 
     start_index, end_index = pagination()
 
-    sorted_posts = sort_posts()
+    posts = read_file()
+
+    if posts is None:
+        return not_found_error('')
+
+    sorted_posts = sort_posts(posts)
     if sorted_posts is not None:
         if not sorted_posts:
             return bad_request_error('')
         return jsonify(sorted_posts[start_index:end_index])
 
-    return jsonify(POSTS[start_index:end_index])
+    return jsonify(posts[start_index:end_index])
 
 
 def validate_post_data(new_post: dict) -> bool:
@@ -121,37 +141,44 @@ def validate_post_data(new_post: dict) -> bool:
     Return True if new post data
     has title and content
     otherwise return False
-    param new_data: dict
-    returns: True | False (bool)
+    Params:
+        new_data: dict
+    Returns:
+        True | False (bool)
     """
     return ('title' in new_post and 'content' in new_post) and \
         new_post['title'] != '' and new_post['content'] != ''
 
 
-def generate_new_id() -> int:
+def generate_new_id(posts: List[dict]) -> int:
     """
     Generate a new unique identifier
     for new post
-    returns:
+    Params:
+        posts: List[dict]
+    Returns:
         a new unique post id (int)
     """
-    return max(post['id'] for post in POSTS) + 1
+    return max(post['id'] for post in posts) + 1
 
 
-def add_new_post(new_post: dict):
+def add_new_post(posts: List[dict], new_post: dict):
     """
     Update the new_post with new id and
-    append it the POSTS list
-    param new_post: dict
+    append it the posts list
+    Params:
+        posts: List[dict]
+        new_post: dict
     """
     new_id = 1
 
-    if POSTS:
+    if posts:
         # generate a new id for the post
-        new_id = generate_new_id()
+        new_id = generate_new_id(posts)
 
     new_post.update({"id": new_id})
-    POSTS.append(new_post)
+    posts.append(new_post)
+    write_file(posts)
 
 
 @app.route('/api/posts', methods=['POST'])
@@ -169,12 +196,17 @@ def add_post() -> Tuple[Response, int]:
     if not validate_post_data(new_post):
         return bad_request_error('')
 
-    add_new_post(new_post)
+    posts = read_file()
+
+    if posts is None:
+        return not_found_error('')
+
+    add_new_post(posts, new_post)
 
     return jsonify(new_post), 201  # Created
 
 
-def find_post_by_id(post_id: int) -> dict | None:
+def find_post_by_id(posts: List[dict], post_id: int) -> dict | None:
     """
     Find the post with the given id
     param post_id: int
@@ -182,7 +214,7 @@ def find_post_by_id(post_id: int) -> dict | None:
         Post (dict)
         None
     """
-    for post in POSTS:
+    for post in posts:
         if post['id'] == post_id:
             return post
     return None
@@ -205,12 +237,15 @@ def delete_post(post_id: int) -> Tuple[Response, int]:
     """
     app.logger.info('DELETE request received for /api/posts/%s', post_id)
 
-    post = find_post_by_id(post_id)
+    posts = read_file()
 
-    if post is None:
+    if posts is None:
         return not_found_error('')
 
-    POSTS.remove(post)
+    post = find_post_by_id(posts, post_id)
+
+    posts.remove(post)
+    write_file(posts)
     message = {"message": f"Post with id {post_id} has been deleted successfully."}
     return jsonify(message), 200  # OK
 
@@ -241,10 +276,11 @@ def update_post(post_id: int) -> Tuple[Response, int]:
     """
     app.logger.info('PUT request received for /api/posts/%s', post_id)
 
-    post = find_post_by_id(post_id)
-
-    if post is None:
+    posts = read_file()
+    if posts is None:
         return not_found_error('')
+
+    post = find_post_by_id(posts, post_id)
 
     new_post = request.get_json()
 
@@ -253,36 +289,57 @@ def update_post(post_id: int) -> Tuple[Response, int]:
             return bad_request_error('')
 
     post.update(new_post)
+    write_file(posts)
 
     return jsonify(post), 200  # Ok
 
 
+def get_search_term() -> tuple[str, str]:
+    """
+    Get search term from
+    request url parameters
+    returns:
+        dict key, search term (str)
+    """
+    # url = "/api/posts/search?title=flask"
+    title = request.args.get('title')
+    content = request.args.get('content')
+    author = request.args.get('author')
+    date = request.args.get('date')
+
+    if title is not None:
+        return 'title', title
+    if content is not None:
+        return 'content', content
+    if author is not None:
+        return 'author', author
+    if date is not None:
+        return 'date', date
+
+
 @app.route('/api/posts/search', methods=['GET'])
-def search_post() -> List[dict]:
+def search_post() -> Tuple[Response, int] | List[dict]:
     """
     An API endpoint that will allow clients
     to search for posts by their
     title or content.
-    returns:
-        empty list or
+    Returns:
+        not found error message, 404 (Tuple[Response, int])
+        empty list (List) or
         searched result (List[dict])
     """
     app.logger.info('GET request received for /api/posts/search')
 
-    # url = "/api/posts/search?title=flask"
-    # url = "/api/posts/search?content=python"
+    posts = read_file()
 
-    title = request.args.get('title')
-    content = request.args.get('content')
+    if posts is None:
+        return not_found_error('')
+
+    key, search_term = get_search_term()
 
     search_result = []
-    for post in POSTS:
-        if title is not None and \
-                title.strip().lower() in post['title'].lower():
-            search_result.append(post)
-
-        if content is not None and \
-                content.strip().lower() in post['content'].lower():
+    for post in posts:
+        if search_term.strip().lower() in post[key].lower():
             search_result.append(post)
 
     return search_result
