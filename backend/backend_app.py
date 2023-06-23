@@ -1,54 +1,119 @@
 """
-Backend API endpoints for Blog Posts
+Blog Application RESTful API Web Service.
+A RESTful API with Flask that implement
+listing, adding, deleting, updating,
+searching, and sorting blog posts.
+Implemented endpoints,
+errors handling,
+pagination,
+rate limit,
+logging and
+testing API with Postman.
 """
+import logging
 from typing import Tuple, List
 from flask import Flask, jsonify, request, Response
 # pip3 install flask-cors
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
 CORS(app)  # This will enable CORS for all routes
 
+limiter = Limiter(app)
+limiter.key_func = get_remote_address
+
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s %(levelname)s: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+
 POSTS = [
     {"id": 1, "title": "First post", "content": "This is the first post."},
     {"id": 2, "title": "Second post", "content": "This is the second post."},
+    {"id": 3, "title": "Third post", "content": "This is the third post."},
+    {"id": 4, "title": "Fourth post", "content": "This is the fourth post."},
+    {"id": 5, "title": "Fifth post", "content": "This is the fifth post."},
+    {"id": 6, "title": "Sixth post", "content": "This is the sixth post."},
+    {"id": 7, "title": "Seventh post", "content": "This is the seventh post."},
+    {"id": 8, "title": "Eighth post", "content": "This is the eighth post."},
+    {"id": 9, "title": "Ninth post", "content": "This is the ninth post."},
+    {"id": 10, "title": "Tenth post", "content": "This is the tenth post."},
 ]
 
 
-@app.route('/api/posts', methods=['GET'])
-def get_posts() -> tuple[Response, int] | Response:
+def pagination() -> tuple[Response, int] | tuple[int, int]:
     """
-    A GET API endpoint for
-    listing all the posts.
-    It also allows the posts
-    to be sorted by title or content,
-    in ascending or descending order.
+    Implement pagination for listing blog posts
+    with page and limit parameters
+    returns:
+        bad request error message, 400 (tuple[Response, int])
+        start and end index for the page (tuple[int, int])
+    """
+    try:
+        # /api/posts?page=2&limit=5
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 10))
+    except ValueError:
+        return bad_request_error('')
 
+    start_index = (page - 1) * limit
+    end_index = start_index + limit
+
+    return start_index, end_index
+
+
+def sort_posts() -> bool | List | None:
+    """
+    Sort blog posts by title or content,
+    in ascending or descending order.
     sort: Specifies the field (title or content) by which
           posts should be sorted.
     direction: Specifies the sort order (asc or desc).
+    returns:
+        bad request error message, 400 (Tuple[Response, int])
+        sorted posts (List) or
+        None
+    """
+    # /api/posts?sort=title&direction=desc
+    sort = request.args.get('sort')
+    direction = request.args.get('direction', 'asc')
 
+    if sort is not None:
+        if sort not in ['title', 'content'] or \
+                direction not in ['asc', 'desc']:
+            return False
+
+        sorted_posts = sorted(POSTS, key=lambda post: post[sort], reverse=direction == 'desc')
+        return sorted_posts
+    return None
+
+
+@app.route('/api/posts', methods=['GET'])
+@limiter.limit("10/minute")  # Limit to 10 requests per minute, not apply to localhost
+def get_posts() -> Tuple[Response, int] | Response:
+    """
+    A GET API endpoint for
+    listing all the posts with pagination.
+    It also allows the posts
+    to be sorted by title or content,
+    in ascending or descending order.
     returns:
         posts list (Response) or
         ordered posts list (Response) or
         bad request error message, 400 (tuple[Response, int])
     """
-    # /api/posts?sort=title&direction=desc
+    app.logger.info('GET request received for /api/posts')
 
-    sort = request.args.get('sort')
-    direction = request.args.get('direction')
+    start_index, end_index = pagination()
 
-    if sort is not None and \
-            direction is not None:
-
-        if sort not in ['title', 'content'] or \
-                direction not in ['asc', 'desc']:
+    sorted_posts = sort_posts()
+    if sorted_posts is not None:
+        if not sorted_posts:
             return bad_request_error('')
+        return jsonify(sorted_posts[start_index:end_index])
 
-        ordered_posts = sorted(POSTS, key=lambda post: post[sort], reverse=(direction == 'desc'))
-        return jsonify(ordered_posts)
-
-    return jsonify(POSTS)
+    return jsonify(POSTS[start_index:end_index])
 
 
 def validate_post_data(new_post: dict) -> bool:
@@ -97,10 +162,12 @@ def add_post() -> Tuple[Response, int]:
         Invalid post data error message, bad request status code
         New post, created status code
     """
+    app.logger.info('POST request received for /api/posts')
+
     new_post = request.get_json()
 
     if not validate_post_data(new_post):
-        return bad_request('')
+        return bad_request_error('')
 
     add_new_post(new_post)
 
@@ -136,6 +203,8 @@ def delete_post(post_id: int) -> Tuple[Response, int]:
         Delete message, 200 (Tuple[Response, int])
         Empty message, 404 (Tuple[Response, int])
     """
+    app.logger.info('DELETE request received for /api/posts/%s', post_id)
+
     post = find_post_by_id(post_id)
 
     if post is None:
@@ -170,6 +239,8 @@ def update_post(post_id: int) -> Tuple[Response, int]:
         bad request error message or
         the updated post, 200 (Tuple[Response, int])
     """
+    app.logger.info('PUT request received for /api/posts/%s', post_id)
+
     post = find_post_by_id(post_id)
 
     if post is None:
@@ -196,6 +267,8 @@ def search_post() -> List[dict]:
         empty list or
         searched result (List[dict])
     """
+    app.logger.info('GET request received for /api/posts/search')
+
     # url = "/api/posts/search?title=flask"
     # url = "/api/posts/search?content=python"
 
