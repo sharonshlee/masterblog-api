@@ -350,7 +350,7 @@ def search_post() -> Tuple[Response, int] | List[dict]:
         if search_term.strip().lower() in post[key].lower():
             search_result.append(post)
 
-    return search_result
+    return jsonify(search_result)
 
 
 @app.errorhandler(404)
