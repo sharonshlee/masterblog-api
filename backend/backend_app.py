@@ -323,7 +323,7 @@ def get_search_term() -> tuple[str, str] | None:
 
 
 @app.route('/api/posts/search', methods=['GET'])
-def search_post() -> Tuple[Response, int] | List[dict]:
+def search_post() -> Tuple[Response, int] | Response:
     """
     An API endpoint that will allow clients
     to search for posts by their
