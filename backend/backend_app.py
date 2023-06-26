@@ -1,14 +1,13 @@
 """
-Blog Application RESTful API Web Service.
-A RESTful API with Flask that implement
-listing, adding, deleting, updating,
-searching, and sorting blog posts.
-Implemented CORS endpoints,
-errors handling,
-pagination,
-rate limit,
-logging and
-testing API with Postman.
+Blog Application Web Service.
+
+A RESTful API using Flask that
+implements listing, adding, deleting,
+updating, searching, and sorting blog posts.
+
+Implemented CORS endpoints, error handling,
+pagination, rate limit, and logging features.
+Testing API with Postman.
 """
 from datetime import datetime
 import json
@@ -98,9 +97,13 @@ def sort_posts(posts: List[dict]) -> bool | List | None:
             return False
 
         if sort == 'date':
-            return sorted(posts, key=lambda post: datetime.strptime(post[sort], "%Y-%m-%d").date(), reverse=direction == 'desc')
+            return sorted(posts,
+                          key=lambda post: datetime.strptime(post[sort], "%Y-%m-%d").date(),
+                          reverse=direction == 'desc')
 
-        return sorted(posts, key=lambda post: post[sort], reverse=direction == 'desc')
+        return sorted(posts,
+                      key=lambda post: post[sort],
+                      reverse=direction == 'desc')
     return None
 
 
@@ -294,12 +297,13 @@ def update_post(post_id: int) -> Tuple[Response, int]:
     return jsonify(post), 200  # Ok
 
 
-def get_search_term() -> tuple[str, str]:
+def get_search_term() -> tuple[str, str] | None:
     """
     Get search term from
     request url parameters
     returns:
         dict key, search term (str)
+        None
     """
     # url = "/api/posts/search?title=flask"
     title = request.args.get('title')
@@ -315,6 +319,7 @@ def get_search_term() -> tuple[str, str]:
         return 'author', author
     if date is not None:
         return 'date', date
+    return None
 
 
 @app.route('/api/posts/search', methods=['GET'])
@@ -334,6 +339,9 @@ def search_post() -> Tuple[Response, int] | List[dict]:
 
     if posts is None:
         return not_found_error('')
+
+    if get_search_term() is None:
+        return bad_request_error('')
 
     key, search_term = get_search_term()
 
