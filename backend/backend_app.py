@@ -331,7 +331,7 @@ def search_post() -> Tuple[Response, int] | Response:
     Returns:
         not found error message, 404 (Tuple[Response, int])
         empty list (List) or
-        searched result (List[dict])
+        searched result (Response)
     """
     app.logger.info('GET request received for /api/posts/search')
 
