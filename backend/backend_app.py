@@ -247,6 +247,9 @@ def delete_post(post_id: int) -> Tuple[Response, int]:
 
     post = find_post_by_id(posts, post_id)
 
+    if post is None:
+        return not_found_error('')
+
     posts.remove(post)
     write_file(posts)
     message = {"message": f"Post with id {post_id} has been deleted successfully."}
@@ -284,6 +287,9 @@ def update_post(post_id: int) -> Tuple[Response, int]:
         return not_found_error('')
 
     post = find_post_by_id(posts, post_id)
+
+    if post is None:
+        return not_found_error('')
 
     new_post = request.get_json()
 
